@@ -295,4 +295,65 @@ confusionMatrix(table(predict(OJ_svm_rad, newdata = testing),
 By comparing the `Accuracy`, I will choose the SVM(poly) who has the highest `Accuracy`.
 
 1.  Train one of the SVM models using a single core, 2 cores, and 4 cores. Compare the speedup (if any).
-2.  You might want to look at `rbenchmark` or `microbenchmark` packages for timing.
+
+``` r
+library(doMC)
+```
+
+    ## Loading required package: foreach
+
+    ## 
+    ## Attaching package: 'foreach'
+
+    ## The following objects are masked from 'package:purrr':
+    ## 
+    ##     accumulate, when
+
+    ## Loading required package: iterators
+
+    ## Loading required package: parallel
+
+``` r
+registerDoMC(cores = 1)
+OJ_svm_c1 <- system.time(ksvm(Purchase ~ ., 
+                         data = training,
+                         type = "C-svc", kernel = 'polydot', 
+                         kpar = list(degree = 2, scale = .1), 
+                         C = .01, prob.model = T))
+OJ_svm_c1
+```
+
+    ##    user  system elapsed 
+    ##   0.114   0.000   0.114
+
+``` r
+registerDoMC(cores = 2)
+
+OJ_svm_c2 <- system.time(ksvm(Purchase ~ ., 
+                         data = training,
+                         type = "C-svc", kernel = 'polydot', 
+                         kpar = list(degree = 2, scale = .1), 
+                         C = .01, prob.model = T))
+OJ_svm_c2
+```
+
+    ##    user  system elapsed 
+    ##   0.116   0.000   0.116
+
+``` r
+registerDoMC(cores = 4)
+
+OJ_svm_c4 <- system.time(ksvm(Purchase ~ ., 
+                         data = training,
+                         type = "C-svc", kernel = 'polydot', 
+                         kpar = list(degree = 2, scale = .1), 
+                         C = .01, prob.model = T))
+OJ_svm_c4
+```
+
+    ##    user  system elapsed 
+    ##   0.114   0.000   0.114
+
+By comparing the system time shown above, we can tell that `single core` and `4 cores` have the same system time.
+
+1.  You might want to look at `rbenchmark` or `microbenchmark` packages for timing.
