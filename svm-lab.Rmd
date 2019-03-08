@@ -1,6 +1,6 @@
 ---
 title: "Untitled"
-author: "Your Name Goes Here"
+author: "Xiao Li"
 date: "3/5/2019"
 output: github_document
 ---
@@ -9,6 +9,17 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r libs, message = F, warning = F, include = F}
+library(MASS)
+library(tidyverse)
+library(broom)
+library(caret)
+library(ISLR)
+library(janitor)
+library(plotROC)
+library(kernlab)
+theme_set(theme_bw())
+```
 1. This question refers to Chapter 9 Problem 8 beginning on page 371 in the 
 text. 
 
@@ -28,6 +39,108 @@ text.
     j. Using the best models from LDA, SVC, SVM (poly), and SVM (radial), 
     compute the test error. 
     k. Which method would you choose?
+```{r}
+df <- tbl_df(OJ)
+```
+
+```{r}
+set.seed(19823)
+inTraining <- createDataPartition(df$Purchase,
+                                  p = .8,
+                                  list = F)
+training <- df[inTraining,]
+testing <- df[-inTraining,]
+```
+
+SVC: C = 0.01
+```{r}
+OJ_svc <- ksvm(Purchase ~ ., data = training,
+                  type = "C-svc", kernel = 'vanilladot', C = .01, prob.model = TRUE)
+fits_svc <- predict(OJ_svc, newdata = training, type = "probabilities")
+new_fits <- mutate(training, 
+                   svc_probs = fits_svc[, 2],
+                   default = if_else(Purchase == "MM", 1, 0))
+p <- ggplot(data = new_fits,
+            aes(d = default, m = svc_probs))
+p + geom_roc(n.cuts = 0, col = "navy") +
+  style_roc()
+```
+```{r}
+confusionMatrix(table(predict(OJ_svc, newdata = testing), testing$Purchase), positive = "MM")
+```
+SVC-Cross Validation:
+```{r}
+fit_control <- trainControl(method = "repeatedcv",
+                           number = 10, 
+                           repeats = 3)
+OJ_train <- train(Purchase ~ .,
+                  data = training,
+                  method = "svmLinear",
+                  trControl = fit_control,
+                  tuneGrid = data.frame(C = seq(0.01, 10, len = 20))) # buffer
+OJ_train
+```
+
+```{r}
+plot(OJ_train)
+```
+
+Confusion matrix on the cross validation sets:
+```{r}
+confusionMatrix(OJ_train)
+```
+ 
+```{r}
+confusionMatrix(table(predict(OJ_train, newdata = testing), 
+                      testing$Purchase), positive = "MM")
+```
+
+SVM:
+```{r}
+OJ_svm <- ksvm(Purchase ~ ., 
+               data = training,
+               type = "C-svc", kernel = 'polydot', 
+               kpar = list(degree = 2, scale = .1), 
+               C = .01, prob.model = T)
+
+fits_svm <- predict(OJ_svm, newdata = training, type = "probabilities")
+svm_pred <- mutate(new_fits, svm_probs = fits_svm[, 2])
+p <- ggplot(data = svm_pred,
+            aes(d = default, m = svm_probs))
+p + geom_roc(n.cuts = 0, col = "#1b9e77") +
+  style_roc()
+```
+
+```{r}
+confusionMatrix(table(predict(OJ_svm, newdata = testing), 
+                      testing$Purchase), positive = "MM")
+```
+
+SVM-radial:
+```{r}
+OJ_svm_rad <- ksvm(Purchase ~ ., data = training,
+                   type = "C-svc", kernel = 'rbfdot', 
+                   kpar = list(sigma = .1), #sigma is similar to the effect of scale parameter
+                   prob.model = T)
+fits_svm_rad <- predict(OJ_svm_rad, newdata = training, type = "probabilities")
+```
+
+```{r}
+svm_pred_rad <- mutate(svm_pred, svm_probs_rad = fits_svm_rad[, 2])
+p <- ggplot(data = svm_pred_rad,
+            aes(d = default, m = svm_probs_rad))
+p + geom_roc(n.cuts = 0) +
+  style_roc() +
+  scale_color_brewer(palette = "Dark2")
+```
+
+```{r}
+confusionMatrix(table(predict(OJ_svm_rad, newdata = testing), 
+                      testing$Purchase), positive = "MM")
+```
+
+By comparing the `Accuracy`, I will choose the SVM(poly) who has the highest `Accuracy`.
+
 2. Train one of the SVM models using a single core, 2 cores, and 4 cores.
 Compare the speedup (if any). 
 3. You might want to look at `rbenchmark` or `microbenchmark` packages for 
